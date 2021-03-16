@@ -1,0 +1,168 @@
+---
+title: "Assignment 3 Problem 1"
+output: html_notebook
+---
+
+
+1. The summary statistics of the data set indicates that there 777 observations with 19 variables among which 17 are numerical and 2 are categorical. It doesn't appear to be any missing values
+```{r}
+college = read.csv("College.csv", stringsAsFactors = TRUE)
+summary(college)
+str(college)
+colSums(is.na(college))
+colSums(college == "?")
+attach(college)
+
+```
+
+2. Remove the first column, name of college
+
+```{r}
+college = subset(college, select = -X)
+
+```
+
+3. Based on the combined correlation matrix and plots of all numeric variables, it appears Accept, Enroll, F. undergrad have a strong positive relationship with Apps. Although not very strong, there is also a positive relationship between Apps and P.Undergard, Top25perc, Top10perc, PhD, Terminal and Expend. Perc.alumni has a negative relationship while Outstate, Room.Board, Books, Personal, S.F.Ratio and Grad.Rate have a weaker relationship.
+
+```{r}
+library(psych)
+pairs.panels(college[-1])
+
+```
+
+4.The histogram of Apps as well as the correlation matrix from question 3 show a positively skewed sample which means most of the applications in the sample are less than the mean.
+
+```{r}
+hist(Apps)
+
+```
+
+5. Let's replace Apps with log(Apps). That substitution does give a symmetric distribution.
+
+```{r}
+#make a copy for deletion/updates
+collegemod = college
+collegemod$Apps = log(collegemod$Apps)
+hist(collegemod$Apps)
+
+```
+
+6. The Elite variable is a 2 level factor variable. Yes if Top10perc>=50, otherwise no 
+
+```{r}
+Elite = as.factor(ifelse(Top10perc>=50, "Yes", "No"))
+collegemod$Top10perc = Elite
+names(collegemod)[names(collegemod) == "Top10perc"] = "Elite"
+attach(collegemod)
+
+```
+
+7. Both the side by side box plot and the t.test statistical test show that there is a relationship between Apps and the newly created variable Elite
+
+```{r}
+plot(collegemod$Apps ~ collegemod$Elite, data = collegemod)
+t.test(collegemod$Apps ~ collegemod$Elite)
+
+
+```
+
+8. Let's split the data into train and test set
+
+```{r}
+collegemodTrain = collegemod[1:621,]
+collegemodTest = collegemod[622:777,]
+
+```
+
+9.
+
+```{r}
+set.seed(123)
+
+
+```
+
+10. After running a 10 fold cross validation using the lm method, it appears the coefficients corresponding to PrivateYes, Accept, Enroll, outstate, S.F. Ratio, and Grad.Rate are statistically different from zero. The coefficients of Top25perc, F.Undergrad, Phd, Expend were also statistically different but at a lower degree. Finally, Room.board, Books and perc.alumni also had their coefficient with a statistical difference. What this means is that these variables played an important role in predicting the Apps. The RMSE is at 0.55 and the MAE is at 0.41
+
+```{r}
+install.packages("caret")
+library(caret)
+train.control = trainControl(method = "cv", number = 10)
+collegemodel = train(Apps ~ .,data = collegemodTrain,method= "lm",trControl= train.control)
+print(collegemodel)
+summary(collegemodel)
+
+```
+
+11.Compute the RMSE of the test data. The summary of the predicted value and the test data shows that the model does well between the 1st and 3rd quartile. The RMSE (0.481) and MAE(0.356) returned are better than those we had earlier
+
+```{r}
+pcollegemod = predict(collegemodel, collegemodTest)
+summary(pcollegemod)
+summary(collegemodTest$Apps)
+#The rmse and mae, the lower the better
+rmse = sqrt(mean((collegemodTest$Apps-pcollegemod)^2))
+mae = mean(abs(collegemodTest$Apps-pcollegemod))
+rmse
+mae
+
+
+```
+
+12.
+
+```{r}
+set.seed(123)
+
+```
+
+13.Using stepwise regression with backward selection, the model with 13 variables has the lowest RMSE at 0.547. The variables selected for that model were PrivateYes, Accept, Enroll, Top25perc, F.Undergrad, Outstate, Room.Board, Books, PhD, S.F.Ratio, perc.alumni, Expend and Gard.Rate
+
+```{r}
+install.packages("leaps")
+library(leaps)
+step.collegemod = train(Apps ~., data = collegemodTrain,method= "leapBackward",trControl= train.control, tuneGrid = data.frame(nvmax = 1:16))
+print(step.collegemod)
+summary(step.collegemod)
+
+
+```
+
+14. RMSE of the stepwside model on the test data is 0.488 while the MAE is 0.363
+
+```{r}
+step.pcollegemod = predict(step.collegemod, collegemodTest)
+
+
+rmse = sqrt(mean((collegemodTest$Apps-step.pcollegemod)^2))
+mae = mean(abs(collegemodTest$Apps-step.pcollegemod))
+rmse
+mae
+
+
+```
+
+15. Creating a regression tree model on the train data, the RMSE for that model is at 0.29 while the MAE is at 0.22
+
+```{r}
+install.packages("rpart")
+install.packages("rpart.plot")
+library(rpart)
+library(rpart.plot)
+college.rpart = rpart(Apps ~ ., data = collegemodTrain)
+rpart.plot(college.rpart)
+
+#prediction on test data and computation of the RMSE
+pcollege.rpart = predict(college.rpart, collegemodTest)
+
+
+rmse = sqrt(mean((collegemodTest$Apps-pcollege.rpart)^2))
+mae = mean(abs(collegemodTest$Apps-pcollege.rpart))
+rmse
+mae
+
+
+```
+
+16. Comparing the RMSE and MAE for the regression tree, linear regression and stepwise regression, there is no doubt that the regression tree model performs better with a lower RMSE and MAE respectively at 0.29 and 0.22
+

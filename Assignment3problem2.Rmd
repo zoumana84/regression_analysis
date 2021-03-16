@@ -1,0 +1,90 @@
+---
+title: "Assignment 3 Problem 2"
+output: html_notebook
+---
+
+1. set the random seed and split the data
+```{r}
+credit = read.csv("credit.csv", stringsAsFactors = TRUE)
+set.seed(123)
+#create a vector train_sample of 900 random numbers between 1 and 1000:
+train_sample = sample(1000, 900)
+#use the random vector train_sample as index selector to extract 900 records from the dataset giving the train
+#data set with 900 observations
+credit_train = credit[train_sample, ]
+
+#use the random vector train_sample once again as index selector to create a test set by excluding
+#the previously selected 900 records from the dataset. The resulting test set will include the remaining 100 records
+credit_test = credit[-train_sample, ]
+
+
+```
+
+2.Logistic regression model using glm. 19 no default were classified as default while 7 defaults were classified as no default.That's a FPR of 0.24 and a FNR of 0.30 which is not better than the regression tree example of week 6  especially in terms of false positives. That example had only 8 cases of false positives for 19 false negatives.
+```{r}
+attach(credit)
+#The argument family=“binomial” tells R to run a logistic regression with binary outcome variable
+logisticmodel_credit = glm(default ~., data = credit_train, family = "binomial")
+
+predictions_credit = predict(logisticmodel_credit, credit_test, type = "response")
+head(predictions_credit)
+predicted.label=factor(ifelse(predictions_credit<0.5, "No","Yes"))
+
+
+#Let's compare with the actual labels
+actual.label = default[-train_sample]
+summary(actual.label)
+t = table(predicted.label, credit_test$default)
+t
+
+FPR=t[1,2]/(t[1,2]+t[1,1])
+FNR=t[2,1]/(t[2,1]+t[2,2])
+FPR
+FNR
+
+```
+
+3. In comparison to the imbalanced data of question 2, the FPR of the balanced data is actually slightly higher at 0.27. If the comparison was somewhat blind, the conclusion would have been that the model with the balanced data doesn't perform better. However, I believe this is an indication that the results given by the model in question 2 with the imbalanced data was indeed likely biased. Had the FPR of both balanced and imbalanced been consistently close, I think we could have then concluded that the model with the imbalanced data wasn't biased.
+```{r}
+#Balancing the data using SMOTE
+set.seed(123)
+install.packages("DMwR")
+library(DMwR)
+newcredit = SMOTE(default ~., credit, perc.over = 100)
+
+#checking to make sure there is some balance in the previously imbalanced data
+table(newcredit$default)
+names(newcredit)[names(newcredit) == "default"] = "Bdefault"
+attach(newcredit)
+
+#let's retrain the logistic regression model on the newly balanced data set
+
+#create a vector train_sample of 900 random numbers between 1 and 1000:
+Btrain_sample = sample(1200, 900)
+#use the random vector train_sample as index selector to extract 900 records from the dataset giving the train
+#data set with 900 observations
+Bcredit_train = newcredit[Btrain_sample, ]
+
+#use the random vector train_sample once again as index selector to create a test set by excluding
+#the previously selected 900 records from the dataset. The resulting test set will include the remaining 100 records
+Bcredit_test = newcredit[-Btrain_sample, ]
+Blogisticmodel_credit = glm(Bdefault ~., data = Bcredit_train, family = "binomial")
+
+Bpredictions_credit = predict(Blogisticmodel_credit, Bcredit_test, type = "response")
+str(Bpredictions_credit)
+Bpredicted.label=factor(ifelse(Bpredictions_credit<0.5, "No","Yes"))
+
+#Let's compare with the actual labels
+actual.label = Bdefault[-Btrain_sample]
+table(actual.label)
+t = table(Bpredicted.label, Bcredit_test$Bdefault)
+t
+BalancedFPR=t[1,2]/(t[1,2]+t[1,1])
+BalancedFNR=t[2,1]/(t[2,1]+t[2,2])
+BalancedFPR
+BalancedFNR
+
+
+```
+
+
